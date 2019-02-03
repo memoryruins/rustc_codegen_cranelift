@@ -46,7 +46,7 @@ fn main() {
 
     ABC.with(|abc| *abc);
 
-    //0
+    std::io::stdin();
 }
 
 thread_local!(static ABC: u8 = 0);
