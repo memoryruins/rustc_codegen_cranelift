@@ -705,6 +705,14 @@ pub fn trans_get_discriminant<'a, 'tcx: 'a>(
     if layout.abi == layout::Abi::Uninhabited {
         trap_unreachable(&mut fx.bcx);
     }
+
+    {
+        use cranelift::codegen::cursor::Cursor;
+        let ebb = fx.bcx.cursor().current_ebb().unwrap();
+        let inst = fx.bcx.func.layout.last_inst(ebb).unwrap();
+        fx.add_comment(inst, format!("layout variants {:?}", layout.variants));
+    }
+
     match layout.variants {
         layout::Variants::Single { index } => {
             let discr_val = layout
