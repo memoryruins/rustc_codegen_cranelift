@@ -1,52 +1,46 @@
-#![feature(start, box_syntax, core_intrinsics, alloc, alloc_error_handler)]
+#![feature(start, box_syntax, core_intrinsics, alloc, alloc_error_handler, libstd_sys_internals, std_internals, panic_internals)]
+#![feature(unwind_attributes)]
 //#![no_std]
 
-/*
-extern crate alloc;
-extern crate alloc_system;
+extern crate core;
 
-use alloc::prelude::*;
-
-use alloc_system::System;
-
-#[global_allocator]
-static ALLOC: System = System;
-*/
+use std::io::{self, Error, ErrorKind, Write};
+use std::fmt;
 
 #[link(name = "c")]
 extern "C" {
     fn puts(s: *const u8);
 }
 
-/*
-#[panic_handler]
-fn panic_handler(_: &core::panic::PanicInfo) -> ! {
-    unsafe {
-        core::intrinsics::abort();
-    }
-}
-
-#[alloc_error_handler]
-fn alloc_error_handler(_: alloc::alloc::Layout) -> ! {
-    unsafe {
-        core::intrinsics::abort();
-    }
-}
-*/
-
-//#[start]
-//fn main(_argc: isize, _argv: *const *const u8) -> isize {
 fn main() {
-    let world: Box<&str> = box "Hello World!\0";
-    unsafe {
-        puts(*world as *const str as *const u8);
-    }
 
-    let rc = std::rc::Rc::new(||()) as std::rc::Rc<Fn()>;
-
-    ABC.with(|abc| *abc);
-
-    std::io::stdin();
+    let stderr = ::std::io::stderr();
+    let mut stderr = stderr.lock();
+    let mut output = Adaptor { inner: &mut stderr, error: Ok(()) };
+    match fmt::write(&mut output, format_args!("athread '{}' panicked at ...", "<unknown>")) {
+        Ok(()) => {},
+        Err(..) => {
+            unsafe { std::intrinsics::abort(); }
+        }
+    };
 }
 
-thread_local!(static ABC: u8 = 0);
+struct Adaptor<'a, T: ?Sized + 'a> {
+    inner: &'a mut T,
+    error: io::Result<()>,
+}
+
+impl<'a, T: io::Write + ?Sized> fmt::Write for Adaptor<'a, T> {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        unsafe { puts("before\0" as *const str as *const u8); }
+        match self.inner.write_all(s.as_bytes()) {
+            Ok(()) => {
+                unsafe { puts("after\0" as *const str as *const u8); }
+                Ok(())
+            }
+            Err(e) => {
+                unsafe { std::intrinsics::abort(); }
+            }
+        }
+    }
+}
